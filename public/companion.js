@@ -1,0 +1,104 @@
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js";
+
+(() => {
+  const figure = document.querySelector("#hologramHero .figure");
+  if (!figure) return;
+  figure.innerHTML = "";
+  figure.classList.add("eclipse-model");
+  const host = document.createElement("div");
+  host.id = "eclipseModelCanvas";
+  host.setAttribute("aria-label", "ECLIPSE 3D hologram");
+  Object.assign(host.style, { position:"absolute", inset:"0", width:"100%", height:"100%", minHeight:"320px" });
+  figure.append(host);
+  Object.assign(figure.style, { width:"min(76%,560px)", height:"94%", maxHeight:"none", zIndex:"1" });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  camera.position.set(0, 1.15, 4.8);
+  const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.25;
+  renderer.setClearColor(0x000000, 0);
+  host.append(renderer.domElement);
+  Object.assign(renderer.domElement.style, { width:"100%", height:"100%", display:"block" });
+  scene.add(new THREE.HemisphereLight(0xc5f6ff, 0x071321, 2.0));
+  const key = new THREE.DirectionalLight(0x9beeff, 3.0); key.position.set(3,4,5); scene.add(key);
+  const rim = new THREE.PointLight(0x548cff, 22, 12); rim.position.set(-3,1,1); scene.add(rim);
+  const fill = new THREE.PointLight(0x8ffff0, 12, 10); fill.position.set(2,-1,3); scene.add(fill);
+  const resize = () => {
+    const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  };
+  new ResizeObserver(resize).observe(host); resize();
+  const status = document.querySelector("#assistantMode");
+  const hero = document.querySelector("#heroStatus");
+  const setMode = (mode) => { if(status) status.textContent=mode; if(hero) hero.textContent=mode; };
+  setMode("LOADING 3D CORE");
+  new GLTFLoader().load("/eclipse-hologram-enhanced-1.glb", (gltf) => {
+    const model = gltf.scene;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    const scale = 2.65 / Math.max(size.x, size.y, size.z, 0.001);
+    model.scale.setScalar(scale);
+    scene.add(model);
+    setMode("3D CORE ONLINE");
+    const clock = new THREE.Clock();
+    const animate = () => {
+      requestAnimationFrame(animate);
+      const t=clock.getElapsedTime();
+      model.rotation.y = Math.sin(t*.22)*.10;
+      model.position.y = -center.y*scale + Math.sin(t*.8)*.025;
+      renderer.render(scene,camera);
+    };
+    animate();
+  }, undefined, (error) => {
+    console.error("[ECLIPSE] GLB load failed", error);
+    setMode("3D MODEL ERROR");
+    const note=document.createElement("div");
+    note.textContent="3D model could not load. Check the GLB asset path and browser WebGL support.";
+    note.style.cssText="position:absolute;inset:auto 0 8px;text-align:center;color:#ff9aa9;font-size:10px";
+    host.append(note);
+  });
+
+  const log = document.querySelector("#chatlog");
+  const input = document.querySelector("#assistantInput");
+  const send = document.querySelector("#assistantSend");
+  const feedback = document.querySelector("#assistantFeedback");
+  const history = [];
+  let busy = false;
+  const bubble = (who, message, ai=false) => {
+    if (!log) return;
+    const node=document.createElement("div"); node.className="bubble"+(ai?" ai":"");
+    const label=document.createElement("div"); label.className="who"; label.textContent=who;
+    const body=document.createElement("div"); body.textContent=message;
+    node.append(label,body); log.append(node); log.scrollTop=log.scrollHeight;
+  };
+  async function ask() {
+    const message=(input?.value||"").trim();
+    if(!message || busy) return;
+    input.value=""; busy=true; if(send)send.disabled=true;
+    setMode("THINKING"); if(feedback)feedback.textContent="ECLIPSE is consulting the configured AI model…";
+    bubble("YOU",message);
+    try {
+      const response=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message,history:history.slice(-12)})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(data.error||"AI request failed.");
+      const answer=String(data.reply||"").trim()||"I couldn't produce a response.";
+      history.push({role:"user",content:message},{role:"assistant",content:answer});
+      bubble("ECLIPSE / AI",answer,true);
+      setMode("AWAKE · READY");
+      if(feedback)feedback.textContent="Response generated by "+(data.model||"configured model")+".";
+    } catch(error) {
+      bubble("ECLIPSE / SYSTEM",error.message,true);
+      setMode("AI OFFLINE");
+      if(feedback)feedback.textContent=error.message;
+    } finally {busy=false;if(send)send.disabled=false;}
+  }
+  send?.addEventListener("click",e=>{e.preventDefault();e.stopImmediatePropagation();ask();},true);
+  input?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();e.stopImmediatePropagation();ask();}},true);
+  window.addEventListener("beforeunload",()=>renderer.dispose(),{once:true});
+})();
