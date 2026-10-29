@@ -10,7 +10,7 @@ if (!fs.existsSync(bundle) || fs.statSync(bundle).size < 10000) {
   throw new Error("The production Three.js companion bundle is missing. Run npm run build.");
 }
 const source = fs.readFileSync(bundle, "utf8");
-if (/https?:\\/\\/(?:cdn\\.)?(?:jsdelivr|unpkg|cdnjs)/i.test(source)) {
+if (/https?:\/\/(?:cdn\.)?(?:jsdelivr|unpkg|cdnjs)/i.test(source)) {
   throw new Error("The production companion bundle still contains an external CDN dependency.");
 }
 console.log("NEXUS hologram asset and local production bundle checks: OK");
