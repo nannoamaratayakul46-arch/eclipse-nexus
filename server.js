@@ -87,26 +87,78 @@ app.post("/api/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-const routes = ["status", "snapshot", "health", "events", "analytics", "delivery-analytics"];
-for (const route of routes) {
-  app.get("/api/bot/" + route, requireAuth, async (_req, res) => {
-    if (!BOT_URL || !BOT_KEY) return res.status(503).json({ error: "Bot API is not configured." });
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    try {
-      const upstream = await fetch(BOT_URL + "/api/dashboard/" + route, {
-        headers: { "X-ECLIPSE-DASHBOARD-KEY": BOT_KEY, Accept: "application/json" },
-        signal: controller.signal
-      });
-      const body = await upstream.json().catch(() => ({ error: "Bot API returned a non-JSON response." }));
-      res.status(upstream.status).json(body);
-    } catch (error) {
-      res.status(502).json({ error: error.name === "AbortError" ? "Bot API request timed out." : "Could not reach the bot API." });
-    } finally {
-      clearTimeout(timeout);
+async function proxy(req, res, upstreamPath, { allowBody = false } = {}) {
+  if (!BOT_URL || !BOT_KEY) return res.status(503).json({ error: "Bot API is not configured." });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const url = new URL(BOT_URL + upstreamPath);
+    for (const [key, value] of Object.entries(req.query || {})) {
+      if (typeof value === "string" && key !== "url") url.searchParams.set(key, value);
     }
-  });
+    const init = {
+      method: req.method,
+      headers: { "X-ECLIPSE-DASHBOARD-KEY": BOT_KEY, Accept: "application/json" },
+      signal: controller.signal
+    };
+    if (allowBody && ["POST", "PUT", "PATCH"].includes(req.method)) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(req.body || {});
+    }
+    const upstream = await fetch(url, init);
+    const body = await upstream.json().catch(() => ({ error: "Bot API returned a non-JSON response." }));
+    return res.status(upstream.status).json(body);
+  } catch (error) {
+    return res.status(502).json({ error: error.name === "AbortError" ? "Bot API request timed out." : "Could not reach the bot API." });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
+
+const readRoutes = {
+  status: "/api/dashboard/status",
+  snapshot: "/api/dashboard/snapshot",
+  health: "/api/dashboard/status",
+  events: "/api/dashboard/events",
+  analytics: "/api/dashboard/analytics",
+  "delivery-analytics": "/api/dashboard/delivery-analytics",
+  groups: "/api/dashboard/groups",
+  "livechat-stats": "/api/dashboard/livechat/stats"
+};
+for (const [route, upstreamPath] of Object.entries(readRoutes)) {
+  app.get("/api/bot/" + route, requireAuth, (req, res) => proxy(req, res, upstreamPath));
+}
+app.get("/api/bot/groups/:threadId/members", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/members");
+});
+app.post("/api/bot/groups/:threadId/chat/open", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat/open", { allowBody: true });
+});
+app.post("/api/bot/groups/:threadId/chat/close", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat/close", { allowBody: true });
+});
+app.get("/api/bot/groups/:threadId/chat", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat");
+});
+app.post("/api/bot/groups/:threadId/chat/send", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat/send", { allowBody: true });
+});
+app.delete("/api/bot/groups/:threadId/chat", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat");
+});
+
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "5m" }));
 app.get("*", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.listen(PORT, "0.0.0.0", () => {
