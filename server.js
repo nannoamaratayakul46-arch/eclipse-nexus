@@ -94,7 +94,7 @@ async function proxy(req, res, upstreamPath, { allowBody = false } = {}) {
   try {
     const url = new URL(BOT_URL + upstreamPath);
     for (const [key, value] of Object.entries(req.query || {})) {
-      if (typeof value === "string" && key !== "url") url.searchParams.set(key, value);
+      if (typeof value === "string" && !["url", "path", "method"].includes(key)) url.searchParams.set(key, value);
     }
     const init = {
       method: req.method,
