@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("node:crypto");
 const path = require("node:path");
+const fs = require("node:fs");
 
 const app = express();
 app.disable("x-powered-by");
@@ -8,13 +9,17 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "16kb" }));
 
 const PORT = Number(process.env.PORT || 3000);
-const BOT_URL = String(process.env.ECLIPSE_BOT_API_URL || "").replace(/\/+$/, "");
+const BOT_URL = String(process.env.ECLIPSE_BOT_API_URL || "").replace(/[/]+$/, "");
 const BOT_KEY = String(process.env.ECLIPSE_BOT_API_KEY || "");
 const PASSWORD = String(process.env.NEXUS_LOGIN_PASSWORD || "");
 const SECRET = String(process.env.NEXUS_COOKIE_SECRET || "");
+const AI_API_KEY = String(process.env.AI_API_KEY || "");
+const AI_MODEL = String(process.env.AI_MODEL || "gpt-4.1-mini");
+const AI_BASE_URL = String(process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/[/]+$/, "");
 const COOKIE = "eclipse_nexus_session";
 const TTL = 8 * 60 * 60;
 const attempts = new Map();
+const aiAttempts = new Map();
 
 function safeEqual(a, b) {
   const x = Buffer.from(String(a));
@@ -62,7 +67,8 @@ app.use((_req, res, next) => {
 });
 app.get("/api/health", (_req, res) => res.json({
   ok: true,
-  configured: Boolean(BOT_URL && BOT_KEY && PASSWORD && SECRET.length >= 32)
+  configured: Boolean(BOT_URL && BOT_KEY && PASSWORD && SECRET.length >= 32),
+  aiConfigured: Boolean(AI_API_KEY)
 }));
 app.get("/api/session", (req, res) => res.json({ authenticated: validToken(tokenFrom(req)) }));
 app.post("/api/login", (req, res) => {
@@ -85,6 +91,49 @@ app.post("/api/login", (req, res) => {
 app.post("/api/logout", (req, res) => {
   setCookie(req, res, "", 0);
   res.json({ ok: true });
+});
+
+app.post("/api/ai/chat", requireAuth, async (req, res) => {
+  if (!AI_API_KEY) return res.status(503).json({ error: "AI is not configured. Add AI_API_KEY and AI_MODEL to the server environment." });
+  const ip = String(req.ip || "unknown"), now = Date.now(), prior = aiAttempts.get(ip);
+  if (prior && now - prior.at < 60000 && prior.count >= 12) return res.status(429).json({ error: "AI rate limit reached. Wait one minute and try again." });
+  const state = prior && now - prior.at < 60000 ? prior : { at: now, count: 0 };
+  state.count++;
+  aiAttempts.set(ip, state);
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message || message.length > 4000) return res.status(400).json({ error: "Message must be between 1 and 4000 characters." });
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-12)
+    .filter(x => x && ["user", "assistant"].includes(x.role) && typeof x.content === "string")
+    .map(x => ({ role: x.role, content: x.content.slice(0, 4000) })) : [];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const upstream = await fetch(AI_BASE_URL + "/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + AI_API_KEY, "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          { role: "system", content: "You are ECLIPSE, the conversational AI companion inside ECLIPSE NEXUS. Be helpful, direct, warm, and technically capable. You can explain dashboard telemetry only when it is supplied in the conversation; you cannot directly control the Messenger bot, inspect live telemetry, or send Messenger messages from this chat. Never claim to have performed an action. For bot actions, guide the user to the relevant NEXUS controls and require their confirmation." },
+          ...history,
+          { role: "user", content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 900
+      })
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status >= 500 ? 502 : upstream.status)
+      .json({ error: data.error?.message || "Configured AI provider rejected the request." });
+    const reply = data.choices?.[0]?.message?.content;
+    if (typeof reply !== "string" || !reply.trim()) return res.status(502).json({ error: "AI provider returned an empty response." });
+    res.json({ reply: reply.trim(), model: AI_MODEL });
+  } catch (error) {
+    res.status(502).json({ error: error.name === "AbortError" ? "AI request timed out." : "Could not reach the configured AI provider." });
+  } finally {
+    clearTimeout(timeout);
+  }
 });
 
 async function proxy(req, res, upstreamPath, { allowBody = false } = {}) {
@@ -170,11 +219,19 @@ app.delete("/api/bot/groups/:threadId/chat", requireAuth, (req, res) => {
   return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat");
 });
 
+// Inject the 3D/AI companion module while leaving the existing dashboard markup intact.
+for (const route of ["/", "/index.html"]) {
+  app.get(route, (_req, res, next) => {
+    fs.readFile(path.join(__dirname, "public", "index.html"), "utf8", (error, html) => {
+      if (error) return next(error);
+      res.type("html").send(html.replace("</body>", '<script type="module" src="/companion.js"></script></body>'));
+    });
+  });
+}
 app.use(express.static(path.join(__dirname, "public"), { maxAge: "5m" }));
 app.get("*", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.listen(PORT, "0.0.0.0", () => {
   console.log("[NEXUS] listening on port " + PORT);
-  if (!BOT_URL || !BOT_KEY || !PASSWORD || SECRET.length < 32) {
-    console.warn("[NEXUS] Required environment variables are not all configured.");
-  }
+  if (!BOT_URL || !BOT_KEY || !PASSWORD || SECRET.length < 32) console.warn("[NEXUS] Required environment variables are not all configured.");
+  if (!AI_API_KEY) console.warn("[NEXUS] AI companion is not configured (AI_API_KEY missing).");
 });
