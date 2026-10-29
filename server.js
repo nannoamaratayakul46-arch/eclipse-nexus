@@ -138,6 +138,11 @@ app.post("/api/bot/groups/:threadId/chat/open", requireAuth, (req, res) => {
   if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
   return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat/open", { allowBody: true });
 });
+app.post("/api/bot/groups/:threadId/chat/close", requireAuth, (req, res) => {
+  const id = String(req.params.threadId || "");
+  if (!/^\\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
+  return proxy(req, res, "/api/dashboard/groups/" + encodeURIComponent(id) + "/chat/close", { allowBody: true });
+});
 app.get("/api/bot/groups/:threadId/chat", requireAuth, (req, res) => {
   const id = String(req.params.threadId || "");
   if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
