@@ -26,8 +26,8 @@ NEXUS only forwards requests to routes that already exist on the bot; it does no
 
 1. Copy `.env.example` to `.env` and fill in the existing four NEXUS/bot values.
 2. Set `AI_API_KEY` to your model provider API key, `AI_MODEL` to a model available to that key, and `AI_BASE_URL` to the provider's OpenAI-compatible API base URL.
-3. Run `npm install`.
-4. Run `npm run check`.
+3. Run `npm install` (the postinstall hook builds the production hologram bundle).
+4. Run `npm run build` to rebuild it explicitly, then `npm run check`.
 5. Run `npm start` and open `http://localhost:3000`.
 
 Required environment variables:
@@ -45,14 +45,15 @@ Optional AI variables:
 
 The AI key is only read by the server and is never sent to browser JavaScript. AI requests require an authenticated NEXUS session, are limited to 12 requests per IP per minute, have a 30-second timeout, and accept up to 4,000 characters per message. Keep all real secrets in Render's secret environment settings; never commit them.
 
-The GLB is served from the existing repository asset path. Three.js and GLTFLoader are loaded as browser ES modules from jsDelivr, so the deployed browser needs access to that CDN.
+The GLB is served from the existing repository asset path. Three.js and GLTFLoader are installed and bundled into a self-contained production asset at `/assets/companion.bundle.js`. The browser does not need access to a third-party JavaScript CDN. The exact GLB remains a same-origin static asset.
 
 ## Render
 
 Use the existing separate NEXUS Node web service:
 
-- Build command: `npm install`
+- Build command: `npm install && npm run build`
 - Start command: `npm start`
+- Node: 20 or newer
 - Node: 20 or newer
 
 Set the bot/NEXUS variables and AI variables in Render's secret environment settings. Do not replace, merge with, or redeploy the existing bot/dashboard services as part of NEXUS setup.
