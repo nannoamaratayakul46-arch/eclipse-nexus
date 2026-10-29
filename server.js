@@ -128,6 +128,17 @@ const readRoutes = {
 for (const [route, upstreamPath] of Object.entries(readRoutes)) {
   app.get("/api/bot/" + route, requireAuth, (req, res) => proxy(req, res, upstreamPath));
 }
+app.all("/api/bot/endpoint", requireAuth, async (req, res) => {
+  const route = String(req.query.path || req.body?.path || "");
+  const method = String(req.query.method || req.body?.method || req.method).toUpperCase();
+  if (!route.startsWith("/api/dashboard/") || route.startsWith("//") || route.includes("..") ||
+      /(?:auth|login|logout|session|cookie|secret|api-key)/i.test(route) ||
+      !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    return res.status(400).json({ error: "Endpoint or method is not allowed." });
+  }
+  const request = { ...req, method, body: req.body?.body && typeof req.body.body === "object" ? req.body.body : {} };
+  return proxy(request, res, route, { allowBody: true });
+});
 app.get("/api/bot/groups/:threadId/members", requireAuth, (req, res) => {
   const id = String(req.params.threadId || "");
   if (!/^\d{1,128}$/.test(id)) return res.status(400).json({ error: "Invalid group ID." });
