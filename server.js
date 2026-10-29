@@ -224,7 +224,9 @@ for (const route of ["/", "/index.html"]) {
   app.get(route, (_req, res, next) => {
     fs.readFile(path.join(__dirname, "public", "index.html"), "utf8", (error, html) => {
       if (error) return next(error);
-      res.type("html").send(html.replace("</body>", '<script type="module" src="/companion.js"></script></body>'));
+      const importMap = '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>';
+      const moduleScript = '<script type="module" src="/companion.js"></script>';
+      res.type("html").send(html.replace("</head>", importMap + "</head>").replace("</body>", moduleScript + "</body>"));
     });
   });
 }
