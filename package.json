@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node scripts/check-browser.js"
+    "check": "node --check server.js && node scripts/check-server-routes.js && node scripts/check-browser.js"
   },
   "engines": {
     "node": ">=20"
