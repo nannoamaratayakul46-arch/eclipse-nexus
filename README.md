@@ -1,17 +1,26 @@
 # ECLIPSE NEXUS
 
-An independent holographic AI command center for the ECLIPSE Messenger bot. It lives in its own repository and Render service; it does not edit or replace `messenger-bot-admin` or `mess-bot`.
+An independent, holographic AI-inspired command center for the ECLIPSE Messenger bot. It lives in its own repository and Render service; it does not replace or modify `messenger-bot-admin` or `mess-bot`.
 
-## Current implementation
+## Interface
 
-- Holographic AI-inspired interface with animated rings, scan line, status core, dark glass panels, responsive navigation, event feed, analytics and command tiles.
-- Separate NEXUS password and signed HttpOnly session cookie.
-- Server-side proxy keeps `ECLIPSE_BOT_API_KEY` out of the browser.
-- Live reads from the bot's existing `/api/dashboard/status`, `snapshot`, `groups`, `events`, `analytics`, and `delivery-analytics` APIs.
-- Group selector uses the bot's live `/api/dashboard/groups` response.
-- Live chat opens a selected group and polls the bot's existing live-chat API; messages are sent only after the user presses Send. The bot's own live-chat guardrails and send pacing remain in effect.
-- Command tiles prepare text in the chat composer; they do not silently execute actions. The user can review or edit a command before sending it.
-- Telemetry auto-refreshes every 30 seconds.
+- Reference-inspired layout: navigation rail, bot status and system-health cards, live activity, quick command entry, central hologram, chat/interaction panel, connection telemetry, event log, and bottom command shortcuts.
+- Responsive dark glass UI with cyan neon edges, scan line, animated rings, glowing core, and holographic avatar.
+- Interactive assistant panel that can refresh live telemetry, refresh groups, prepare `!help`, or put a user's message into the composer. This is a local command assistant, not an external LLM; it does not pretend to generate bot intelligence or send messages automatically.
+- Command tiles prepare command text. A user selects a Messenger group, reviews the command, and presses Send.
+
+## Connected bot features
+
+- Authenticated server-side proxy; the bot API key never enters browser JavaScript.
+- Live reads from the bot's existing dashboard status, snapshot, health, groups, events, analytics, delivery analytics, and live-chat stats endpoints.
+- Live group selection, group member list, and chat open/poll/send/close bridge.
+- Bot message-handling start/pause, Messenger reconnect/disconnect, and music pause/resume controls.
+- Jaiden Target countdown settings editor, Mass SetNN completion message editor, and reaction engine configuration.
+- Per-group bot/Banat/fun settings.
+- Mass SetNN and nickname-removal job controls/status.
+- Advanced API console for the existing `/api/dashboard/*` endpoints whose payloads are not yet represented as dedicated NEXUS forms. Destructive operations require explicit interaction and should be reviewed before execution.
+
+NEXUS only forwards requests to routes that already exist on the bot; it does not add or modify bot-side routes. Some displayed values may show N/A if the current bot API does not expose those telemetry fields. The assistant UI is not a general-purpose AI model integration.
 
 ## Setup
 
@@ -22,12 +31,12 @@ An independent holographic AI command center for the ECLIPSE Messenger bot. It l
 
 Required environment variables:
 
-- `ECLIPSE_BOT_API_URL`: base URL of the existing bot service (for example, the Render service URL without a trailing slash).
+- `ECLIPSE_BOT_API_URL`: base URL of the existing bot service (for example, its Render service URL without a trailing slash).
 - `ECLIPSE_BOT_API_KEY`: value matching the bot's configured dashboard API key.
 - `NEXUS_LOGIN_PASSWORD`: a new, unique password for NEXUS.
 - `NEXUS_COOKIE_SECRET`: random secret with at least 32 characters.
 
-Never commit real secrets. NEXUS cannot authenticate to the bot API until the bot service is configured to accept the matching dashboard key. This implementation does not add or change bot-side API routes.
+Never commit real secrets. The upstream connection is not usable until the environment variables are set and the bot accepts the matching dashboard key.
 
 ## Render
 
@@ -38,8 +47,10 @@ Create a separate Node web service from this repository:
 - Node: 20 or newer
 - Set all four environment variables in Render's secret environment settings.
 
-Do not replace, merge with, or redeploy the existing bot/dashboard services as part of NEXUS setup. Test the new service and the upstream API contract before sharing the URL.
+Do not replace, merge with, or redeploy the existing bot/dashboard services as part of NEXUS setup. Validate the live upstream API contract and browser behavior before sharing the service URL.
 
-## Scope and safety notes
+## Validation and scope
 
-This is a feature branch for review, not a deployment. The interface includes a command console and a selection of command shortcuts; a shortcut only fills the composer. Bot settings, moderation panels, and other dashboard-only configuration forms are not all wired as dedicated NEXUS controls yet. No claim is made that unsupported endpoints or fields are live. Existing bot and dashboard repositories remain untouched.
+The `NEXUS validation` GitHub Actions workflow runs `node --check server.js` and validates the inline browser script syntax. This does not replace end-to-end tests against a configured live bot.
+
+Current work is in `feat/holographic-command-center` and the draft PR. It has not been merged or deployed.
