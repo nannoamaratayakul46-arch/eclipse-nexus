@@ -232,6 +232,51 @@ body[data-view="controls"] .chatpanel{display:block!important}
  body[data-view="overview"] #overviewActivity{grid-column:span 1}
  body[data-view="overview"] .right-extra{grid-column:span 1}
 }
+
+/* ECLIPSE NEXUS — Messenger admin dashboard palette */
+:root{
+ color-scheme:dark;
+ --bg:#050509;
+ --panel:#0D0A12;
+ --line:#302638;
+ --cyan:#B9829B;
+ --blue:#A994C7;
+ --violet:#A994C7;
+ --green:#B9A5C9;
+ --muted:#9A8B9F;
+ --text:#EEE8F1;
+ --red:#D98A9B;
+}
+body{background:radial-gradient(ellipse at 50% 12%,#17101c 0,#09070d 48%,#050509 100%);color:var(--text)}
+.top{background:rgba(13,10,18,.94);border-color:#49364b;box-shadow:0 0 30px rgba(185,130,155,.07)}
+.logo{border-color:var(--blue);color:var(--blue);box-shadow:0 0 22px rgba(169,148,199,.20),inset 0 0 15px rgba(169,148,199,.10)}
+.pill,.metric,.row,.bubble,.tile,.login{border-color:var(--line)}
+.btn{background:#19121d;border-color:#49364b;color:var(--text)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#09070d}
+.btn:hover,.tile:hover{border-color:var(--blue);box-shadow:0 0 17px rgba(169,148,199,.12)}
+.panel{background:linear-gradient(145deg,rgba(18,13,23,.97),rgba(9,7,13,.98));border-color:var(--line);box-shadow:inset 0 1px rgba(238,232,241,.035),0 8px 24px rgba(0,0,0,.24)}
+.nav button{color:#B8AEBE}
+.nav button.active,.nav button:hover{color:#F0EAF3;border-color:#49364b;background:linear-gradient(90deg,#211725,#120d17);box-shadow:inset 2px 0 var(--blue)}
+.nav em,.title,.bubble .who,.tile .ico{color:var(--blue)}
+.metric,.bubble,.row,.compose input,.field,input,select,textarea{background:#0A080E;border-color:var(--line);color:var(--text)}
+input:focus,select:focus,textarea:focus,.compose input:focus{border-color:var(--blue)}
+.hero{background:radial-gradient(ellipse at 50% 38%,rgba(169,148,199,.17),transparent 44%),radial-gradient(ellipse at 50% 92%,rgba(185,130,155,.12),transparent 42%),linear-gradient(155deg,#110c16,#050509 72%)}
+.hero:before{background-image:linear-gradient(rgba(169,148,199,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(169,148,199,.055) 1px,transparent 1px)}
+.hero:after{background:linear-gradient(180deg,transparent 0%,rgba(185,130,155,.035) 50%,transparent 51%)}
+.ring{border-color:rgba(169,148,199,.48);box-shadow:0 0 28px rgba(169,148,199,.10),inset 0 0 24px rgba(169,148,199,.035)}
+.ring.two{border-color:rgba(185,130,155,.48)}
+.ring:after{background:var(--blue);box-shadow:0 0 18px var(--blue)}
+.aura{background:radial-gradient(circle,rgba(169,148,199,.24),rgba(185,130,155,.07) 42%,transparent 70%)}
+.figure{filter:drop-shadow(0 0 10px rgba(169,148,199,.35)) drop-shadow(0 0 35px rgba(185,130,155,.18))}
+.callout{color:#D6C6DD;border-color:rgba(169,148,199,.22);background:rgba(10,7,14,.52)}
+.callout:after{box-shadow:0 0 8px rgba(169,148,199,.28)}
+.core{border-color:var(--blue);color:var(--blue);background:radial-gradient(circle,rgba(169,148,199,.13),rgba(10,7,14,.38))}
+.scan{background:linear-gradient(90deg,transparent,#E8DDEC,transparent);box-shadow:0 0 13px rgba(232,221,236,.65)}
+.event{border-left-color:var(--blue)}
+.dot{background:var(--green)}
+.loginwrap{background:rgba(5,5,9,.92)}
+.login{background:#0D0A12}
+
 </style></head><body><div class="shell">
 <header class="top"><div class="brand"><div class="logo">◉</div><div><strong>ECLIPSE <span style="color:var(--cyan)">NEXUS</span></strong><small>LIVE BOT INTELLIGENCE · AI COMMAND CENTER</small></div></div><div class="topmeta"><span class="pill"><i class="dot"></i><span id="connection">AUTHENTICATING</span></span><span class="pill">REGION <b id="region">EAG</b></span><span class="pill" id="clock">--:--:--</span></div><div class="actions"><button class="btn nav-toggle" id="navToggle" aria-expanded="false" aria-controls="nexusSidebar">☰ MENU</button><button class="btn" id="refresh">↻ REFRESH</button><button class="btn" id="logout">LOCK</button></div></header>
 <div class="nav-scrim" id="navScrim"></div><div class="layout"><aside class="sidebar" id="nexusSidebar"><section class="panel"><h2 class="title">NEXUS NAVIGATION <span>01</span></h2><nav class="nav"><button class="active" data-target="overview"><em>⌂</em>Overview</button><button data-target="controls"><em>⌘</em>Bot Controls</button><button data-target="features"><em>✳</em>Feature Controls</button><button data-target="operations"><em>⚙</em>Operations Hub</button><button data-target="groups"><em>♧</em>Groups</button><button data-target="members"><em>♙</em>Members</button><button data-target="moderation"><em>⛨</em>Moderation</button><button data-target="security"><em>◇</em>Security</button><button data-target="analytics"><em>▥</em>Analytics</button><button data-target="logs"><em>≋</em>Logs</button><button data-target="settings"><em>⚙</em>Settings</button></nav></section><section class="panel"><h2 class="title">SYSTEM CORE <span>LIVE</span></h2><div class="rows" id="runtime"><div class="row"><span>API</span><b>Waiting…</b></div></div></section><div class="sidefoot">ECLIPSE NEXUS // PRIVATE INSTANCE<br>VISUALS ARE LIVE; COMMAND ACTIONS REQUIRE API SUPPORT.</div></aside>
