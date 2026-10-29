@@ -41,9 +41,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     console.error("[ECLIPSE] WebGL initialization failed", error);
     setMode("WEBGL UNAVAILABLE");
     showDiagnostic("3D projection unavailable in this browser. Enable WebGL or try a supported browser.");
-    return;
+    renderer = null;
   }
 
+  if (renderer) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -154,6 +155,16 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     showDiagnostic("The hologram model failed to load. Check the GLB asset response and browser console.");
   });
 
+  window.addEventListener("beforeunload", () => {
+    disposed = true;
+    window.clearTimeout(modelTimeout);
+    cancelAnimationFrame(frame);
+    resizeObserver.disconnect();
+    window.removeEventListener("resize", resize);
+    renderer.dispose();
+  }, { once:true });
+  }
+
   const log = document.querySelector("#chatlog");
   const input = document.querySelector("#assistantInput");
   const send = document.querySelector("#assistantSend");
@@ -199,12 +210,4 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     if (event.key === "Enter") { event.preventDefault(); event.stopImmediatePropagation(); ask(); }
   }, true);
 
-  window.addEventListener("beforeunload", () => {
-    disposed = true;
-    window.clearTimeout(modelTimeout);
-    cancelAnimationFrame(frame);
-    resizeObserver.disconnect();
-    window.removeEventListener("resize", resize);
-    renderer.dispose();
-  }, { once:true });
 })();
