@@ -18,8 +18,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   const status = document.querySelector("#assistantMode");
   const hero = document.querySelector("#heroStatus");
   const setMode = (mode) => {
+    // Hologram lifecycle is independent from the bot API connection indicator.
     if (status) status.textContent = mode;
-    if (hero) hero.textContent = mode;
   };
   let hologramLoaded = false;
   const showDiagnostic = (message) => {
