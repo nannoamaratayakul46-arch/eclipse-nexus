@@ -230,6 +230,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       if (!gltf || !(gltf.scene || gltf.scenes?.length)) throw new Error("GLB contains no usable scene.");
       return gltf;
     } catch (error) {
+      if (generation !== loadGeneration || disposed) throw error;
       if (attempt >= maxAttempts || error.retryable === false) throw error;
       if (error.name !== "AbortError" && !error.retryable && !/fetch|network|load|timeout|HTTP 5|HTTP 4(08|29)/i.test(error.message || "")) {
         throw error;
@@ -259,6 +260,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   };
 
   const boot = async () => {
+    let generation = 0;
     try {
       setRuntimeStatus("INITIALIZING WEBGL");
       renderer = createRenderer();
@@ -278,7 +280,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       resize();
       animationFrame = requestAnimationFrame(render);
 
-      const generation = ++loadGeneration;
+      generation = ++loadGeneration;
       const gltf = await loadWithRetry(1, generation);
       if (disposed || generation !== loadGeneration) return;
       const sourceScene = gltf.scene || gltf.scenes[0];
@@ -294,6 +296,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       resize();
       revealModel();
     } catch (error) {
+      if (disposed || (generation && generation !== loadGeneration)) return;
       console.error("[ECLIPSE] Primary hologram initialization failed", error);
       setFallback(error.name === "AbortError" ? "MODEL LOAD TIMEOUT · FALLBACK ACTIVE" : "3D UNAVAILABLE · FALLBACK ACTIVE");
       runtimeStatus.title = error?.message || "Unknown hologram initialization error";
@@ -337,8 +340,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     }
   }
   async function bootAfterContextRestore() {
+    let generation = 0;
     try {
-      const generation = ++loadGeneration;
+      generation = ++loadGeneration;
       const gltf = await loadWithRetry(1, generation);
       if (disposed || generation !== loadGeneration) return;
       const sourceScene = gltf.scene || gltf.scenes[0];
@@ -352,6 +356,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       resize();
       revealModel();
     } catch (error) {
+      if (disposed || (generation && generation !== loadGeneration)) return;
       setFallback("MODEL RECOVERY FAILED · FALLBACK ACTIVE");
       runtimeStatus.title = error?.message || "Unknown recovery error";
     }
