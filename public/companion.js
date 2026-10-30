@@ -55,7 +55,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     if (detail) console.warn("[ECLIPSE hologram]", message, detail);
   };
   const setFallback = (message) => {
-    host.style.opacity = "0";
+    host.style.opacity = "1";
     if (fallback) fallback.style.opacity = "1";
     setRuntimeStatus(message);
   };
@@ -298,8 +298,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   function onContextLost(event) {
     event.preventDefault();
     contextLost = true;
-    setRuntimeStatus("GRAPHICS CONTEXT LOST");
-    host.style.opacity = "0";
+    setRuntimeStatus("GRAPHICS CONTEXT LOST · FALLBACK ACTIVE");
+    host.style.opacity = "1";
+    if (fallback) fallback.style.opacity = "1";
   }
   function onContextRestored() {
     contextLost = false;
