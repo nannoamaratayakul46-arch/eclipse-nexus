@@ -81,12 +81,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   const render = () => {
     if (disposed) return;
     frame = requestAnimationFrame(render);
-    if (model && !renderer.getContext().isContextLost()) {
-      const t = clock.getElapsedTime();
+    if (renderer.getContext().isContextLost()) return;
+    const t = clock.getElapsedTime();
+    if (model) {
       model.rotation.y = Math.sin(t * .22) * .10;
       model.position.y = model.userData.baseY + Math.sin(t * .8) * .025;
-      renderer.render(scene, camera);
     }
+    // Keep the projection canvas alive while the GLB downloads or after a load error.
+    renderer.render(scene, camera);
   };
   render();
 
@@ -124,27 +126,35 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     if (disposed) return;
     window.clearTimeout(modelTimeout);
     try {
-      model = gltf.scene;
-      hologramLoaded = true;
-      const bounds = new THREE.Box3().setFromObject(model);
+      const loadedModel = gltf.scene || gltf.scenes?.[0];
+      if (!loadedModel) throw new Error("The GLB contains no default scene or usable scene fallback.");
+      loadedModel.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(loadedModel);
       const dimensions = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
       const largestDimension = Math.max(dimensions.x, dimensions.y, dimensions.z);
       if (!Number.isFinite(largestDimension) || largestDimension <= 0) {
         throw new Error("The GLB contains no visible model geometry.");
       }
-      model.position.sub(center);
-      const scale = 2.65 / largestDimension;
-      model.scale.setScalar(scale);
-      model.userData.baseY = 0;
-      scene.add(model);
+
+      // Normalize the original first-build GLB around the scene origin so its
+      // full character remains in frame on both desktop and narrow screens.
+      loadedModel.position.sub(center);
+      loadedModel.scale.setScalar(2.55 / largestDimension);
+      loadedModel.userData.baseY = 0;
+      loadedModel.updateMatrixWorld(true);
+      scene.add(loadedModel);
+      model = loadedModel;
+      hologramLoaded = true;
       resize();
       setMode("3D CORE ONLINE");
       showDiagnostic("");
     } catch (error) {
       console.error("[ECLIPSE] Model setup failed", error);
+      model = null;
+      hologramLoaded = false;
       setMode("MODEL PARSE ERROR");
-      showDiagnostic("The GLB was downloaded but could not be prepared for rendering.");
+      showDiagnostic("The first-build GLB loaded, but its scene could not be prepared: " + (error?.message || "unknown model error"));
     }
   }, (event) => {
     if (event.total > 0 && !model) {
@@ -152,9 +162,11 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     }
   }, (error) => {
     window.clearTimeout(modelTimeout);
-    console.error("[ECLIPSE] GLB load failed", error);
+    console.error("[ECLIPSE] First-build GLB load failed", error);
+    model = null;
+    hologramLoaded = false;
     setMode("3D MODEL ERROR");
-    showDiagnostic("The hologram model failed to load. Check the GLB asset response and browser console.");
+    showDiagnostic("The primary hologram GLB could not be loaded. Verify /eclipse-hologram-enhanced-1.glb is served successfully.");
   });
 
   window.addEventListener("beforeunload", () => {
