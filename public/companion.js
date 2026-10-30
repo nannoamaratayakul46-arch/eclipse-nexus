@@ -47,6 +47,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   let resizeHandler = null;
   let contextLost = false;
   let successful = false;
+  let loadGeneration = 0;
+  let activeFetchController = null;
 
   const setRuntimeStatus = (message, detail = "") => {
     runtimeStatus.textContent = message;
@@ -194,9 +196,11 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     }
   };
 
-  const loadWithRetry = async (attempt = 1) => {
+  const loadWithRetry = async (attempt = 1, generation = loadGeneration) => {
+    if (generation !== loadGeneration || disposed) throw new DOMException("Superseded hologram load", "AbortError");
     const maxAttempts = 3;
     const controller = new AbortController();
+    activeFetchController = controller;
     const timeout = window.setTimeout(() => controller.abort(), 30000);
     try {
       setRuntimeStatus(attempt === 1 ? "FETCHING PRIMARY GLB" : "RETRYING PRIMARY GLB " + attempt + "/" + maxAttempts);
@@ -211,6 +215,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
         throw error;
       }
       const buffer = await response.arrayBuffer();
+      if (generation !== loadGeneration || disposed) throw new DOMException("Superseded hologram load", "AbortError");
       if (buffer.byteLength < 20) throw new Error("GLB response is unexpectedly small.");
       const view = new DataView(buffer);
       if (view.getUint32(0, true) !== 0x46546c67) throw new Error("Downloaded asset does not have the GLB magic header.");
@@ -221,6 +226,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       const gltf = await new Promise((resolve, reject) => {
         loader.parse(buffer, "/", resolve, reject);
       });
+      if (generation !== loadGeneration || disposed) throw new DOMException("Superseded hologram load", "AbortError");
       if (!gltf || !(gltf.scene || gltf.scenes?.length)) throw new Error("GLB contains no usable scene.");
       return gltf;
     } catch (error) {
@@ -230,9 +236,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       }
       setRuntimeStatus("LOAD RETRY " + attempt + "/" + maxAttempts, error.message);
       await new Promise(resolve => window.setTimeout(resolve, 700 * attempt));
-      return loadWithRetry(attempt + 1);
+      return loadWithRetry(attempt + 1, generation);
     } finally {
       window.clearTimeout(timeout);
+      if (activeFetchController === controller) activeFetchController = null;
     }
   };
 
@@ -271,8 +278,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       resize();
       animationFrame = requestAnimationFrame(render);
 
-      const gltf = await loadWithRetry();
-      if (disposed) return;
+      const generation = ++loadGeneration;
+      const gltf = await loadWithRetry(1, generation);
+      if (disposed || generation !== loadGeneration) return;
       const sourceScene = gltf.scene || gltf.scenes[0];
       const pivot = fitCamera(sourceScene);
       scene.add(pivot);
@@ -310,6 +318,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   }
   function onContextRestored() {
     contextLost = false;
+    loadGeneration++;
+    activeFetchController?.abort();
     try {
       renderer.resetState();
       resize();
@@ -328,8 +338,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   }
   async function bootAfterContextRestore() {
     try {
-      const gltf = await loadWithRetry();
-      if (disposed) return;
+      const generation = ++loadGeneration;
+      const gltf = await loadWithRetry(1, generation);
+      if (disposed || generation !== loadGeneration) return;
       const sourceScene = gltf.scene || gltf.scenes[0];
       const pivot = fitCamera(sourceScene);
       scene.add(pivot);
@@ -349,6 +360,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   const cleanup = () => {
     if (disposed) return;
     disposed = true;
+    loadGeneration++;
+    activeFetchController?.abort();
     cancelAnimationFrame(animationFrame);
     resizeObserver?.disconnect();
     intersectionObserver?.disconnect();
