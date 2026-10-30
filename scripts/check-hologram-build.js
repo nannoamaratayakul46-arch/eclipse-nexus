@@ -25,7 +25,7 @@ while (offset < bytes.length) {
   if (length % 4 !== 0 || offset + length > bytes.length) throw new Error("GLB contains an invalid chunk length.");
   if (type === 0x4e4f534a) {
     if (document) throw new Error("GLB contains multiple JSON chunks.");
-    document = JSON.parse(bytes.toString("utf8", offset, offset + length).replace(/[\\u0000\\u0020]+$/g, ""));
+    document = JSON.parse(bytes.toString("utf8", offset, offset + length).trim());
   } else if (type === 0x004e4942) {
     if (binaryChunk) throw new Error("GLB contains multiple BIN chunks.");
     binaryChunk = { offset, length };
@@ -41,6 +41,7 @@ if (!Array.isArray(document.accessors) || !document.accessors.length) throw new 
 if (!Array.isArray(document.bufferViews) || !document.bufferViews.length) throw new Error("GLB has no buffer views.");
 if (!binaryChunk) throw new Error("GLB has no embedded binary buffer.");
 if (document.buffers?.some(buffer => buffer.uri)) throw new Error("Primary GLB unexpectedly references an external buffer.");
+if (!document.buffers?.length || document.buffers[0].byteLength > binaryChunk.length) throw new Error("GLB embedded buffer declaration is invalid.");
 for (const [index, bufferView] of document.bufferViews.entries()) {
   const end = (bufferView.byteOffset || 0) + bufferView.byteLength;
   if (!Number.isInteger(bufferView.byteLength) || bufferView.byteLength < 0 || end > binaryChunk.length) {
@@ -64,14 +65,14 @@ if (!fs.existsSync(bundlePath) || fs.statSync(bundlePath).size < 10000) {
   throw new Error("The production Three.js companion bundle is missing. Run npm run build.");
 }
 const bundle = fs.readFileSync(bundlePath, "utf8");
-if (/https?:\\/\\/(?:cdn\\.)?(?:jsdelivr|unpkg|cdnjs)/i.test(bundle)) {
+if (["cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com"].some(host => bundle.includes(host))) {
   throw new Error("The production companion bundle still contains an external CDN dependency.");
 }
 const source = fs.readFileSync(sourcePath, "utf8");
 for (const marker of ["loadWithRetry", "GLTFLoader", "webglcontextlost", "AnimationMixer", "eclipse-hologram-enhanced-1.glb"]) {
   if (!source.includes(marker)) throw new Error("Fault-tolerant hologram runtime is missing required behavior: " + marker);
 }
-if (/assistantMode\\.textContent\\s*=/.test(source)) {
+if (source.includes("assistantMode.textContent")) {
   throw new Error("Hologram runtime must not overwrite the independent AI status indicator.");
 }
 console.log("NEXUS primary GLB structure, embedded geometry, and production runtime checks: OK");
