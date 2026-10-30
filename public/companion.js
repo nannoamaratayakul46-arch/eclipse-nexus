@@ -56,6 +56,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   };
   const setFallback = (message) => {
     host.style.opacity = "1";
+    const canvas = host.querySelector("canvas");
+    if (canvas) canvas.style.opacity = "0";
     if (fallback) fallback.style.opacity = "1";
     setRuntimeStatus(message);
   };
@@ -67,6 +69,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       fallback.setAttribute("aria-hidden", "true");
     }
     host.style.opacity = "1";
+    const canvas = host.querySelector("canvas");
+    if (canvas) canvas.style.opacity = "1";
     setRuntimeStatus("PRIMARY 3D CORE ONLINE", "eclipse-hologram-enhanced-1.glb");
   };
 
@@ -300,6 +304,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     contextLost = true;
     setRuntimeStatus("GRAPHICS CONTEXT LOST · FALLBACK ACTIVE");
     host.style.opacity = "1";
+    const canvas = host.querySelector("canvas");
+    if (canvas) canvas.style.opacity = "0";
     if (fallback) fallback.style.opacity = "1";
   }
   function onContextRestored() {
