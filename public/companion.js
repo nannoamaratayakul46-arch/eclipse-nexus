@@ -27,7 +27,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   runtimeStatus.id = "eclipseHologramStatus";
   runtimeStatus.setAttribute("role", "status");
   runtimeStatus.setAttribute("aria-live", "polite");
-  runtimeStatus.style.cssText = "position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;max-width:90%;padding:5px 9px;border:1px solid #29434b;border-radius:20px;background:#04121ddd;color:#a8cbd7;font:8px/1.3 system-ui;letter-spacing:.12em;text-align:center;white-space:nowrap";
+  runtimeStatus.style.cssText = "position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:4;max-width:94%;padding:5px 9px;border:1px solid #29434b;border-radius:10px;background:#04121ddd;color:#a8cbd7;font:8px/1.35 system-ui;letter-spacing:.08em;text-align:center;white-space:normal;overflow-wrap:anywhere;pointer-events:auto";
   host.append(runtimeStatus);
 
   let renderer = null;
@@ -49,19 +49,26 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   let successful = false;
   let loadGeneration = 0;
   let activeFetchController = null;
+  let failureStage = "startup";
+  let renderFailed = false;
 
+  const shortError = (error) => {
+    const raw = String(error?.message || error || "unknown error").replace(/\s+/g, " ").trim();
+    return raw.length > 68 ? raw.slice(0, 65) + "..." : raw;
+  };
   const setRuntimeStatus = (message, detail = "") => {
     runtimeStatus.textContent = message;
     runtimeStatus.title = detail || message;
     runtimeStatus.dataset.state = message.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     if (detail) console.warn("[ECLIPSE hologram]", message, detail);
   };
-  const setFallback = (message) => {
+  const setFallback = (message, detail = "") => {
     host.style.opacity = "1";
     const canvas = host.querySelector("canvas");
     if (canvas) canvas.style.opacity = "0";
     if (fallback) fallback.style.opacity = "1";
-    setRuntimeStatus(message);
+    const diagnostic = detail ? " · " + shortError(detail) : "";
+    setRuntimeStatus(message + diagnostic, detail || message);
   };
   const revealModel = () => {
     successful = true;
@@ -77,6 +84,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   };
 
   const createRenderer = () => {
+    failureStage = "WebGL initialization";
     if (!window.WebGLRenderingContext) throw new Error("WebGL is not supported.");
     const next = new THREE.WebGLRenderer({
       alpha: true, antialias: true, powerPreference: "high-performance",
@@ -93,6 +101,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   };
 
   const buildScene = () => {
+    failureStage = "scene setup";
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(32, 1, 0.01, 1000);
     scene.add(new THREE.HemisphereLight(0xc5f6ff, 0x071321, 2.0));
@@ -108,6 +117,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
   };
 
   const fitCamera = (root) => {
+    failureStage = "model framing";
     root.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(root);
     if (bounds.isEmpty()) throw new Error("The GLB contains no renderable geometry.");
@@ -174,7 +184,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     camera.updateProjectionMatrix();
   };
 
-  const shouldRender = () => !disposed && !contextLost && visible && pageVisible && renderer;
+  const shouldRender = () => !disposed && !contextLost && !renderFailed && visible && pageVisible && renderer;
   const render = (timestamp) => {
     if (disposed) return;
     animationFrame = requestAnimationFrame(render);
@@ -191,12 +201,13 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       renderer.render(scene, camera);
     } catch (error) {
       console.error("[ECLIPSE] Hologram render failed", error);
-      setRuntimeStatus("RENDER FAILURE", error?.message || "Unknown renderer failure");
-      host.style.opacity = "0";
+      renderFailed = true;
+      setFallback("RENDER FAILURE · FALLBACK ACTIVE", error);
     }
   };
 
   const loadWithRetry = async (attempt = 1, generation = loadGeneration) => {
+    failureStage = "GLB fetch";
     if (generation !== loadGeneration || disposed) throw new DOMException("Superseded hologram load", "AbortError");
     const maxAttempts = 3;
     const controller = new AbortController();
@@ -222,6 +233,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       if (view.getUint32(4, true) !== 2) throw new Error("Only binary glTF 2.0 assets are supported.");
       if (view.getUint32(8, true) !== buffer.byteLength) throw new Error("GLB declared length does not match downloaded bytes.");
       setRuntimeStatus("PARSING PRIMARY GLB");
+      failureStage = "GLB parsing";
       const loader = new GLTFLoader();
       const gltf = await new Promise((resolve, reject) => {
         loader.parse(buffer, "/", resolve, reject);
@@ -265,13 +277,23 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
       setRuntimeStatus("INITIALIZING WEBGL");
       renderer = createRenderer();
       buildScene();
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(host);
-      intersectionObserver = new IntersectionObserver(entries => {
-        visible = entries.some(entry => entry.isIntersecting);
-        if (visible) lastFrame = 0;
-      }, { threshold: 0.01 });
-      intersectionObserver.observe(figure);
+      failureStage = "browser observer setup";
+      if ("ResizeObserver" in window) {
+        resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(host);
+      } else {
+        resizeHandler = resize;
+        window.addEventListener("resize", resizeHandler, { passive: true });
+      }
+      if ("IntersectionObserver" in window) {
+        intersectionObserver = new IntersectionObserver(entries => {
+          visible = entries.some(entry => entry.isIntersecting);
+          if (visible) lastFrame = 0;
+        }, { threshold: 0.01 });
+        intersectionObserver.observe(figure);
+      } else {
+        visible = true;
+      }
       resizeHandler = resize;
       window.addEventListener("resize", resizeHandler, { passive: true });
       document.addEventListener("visibilitychange", onVisibilityChange);
@@ -298,8 +320,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     } catch (error) {
       if (disposed || (generation && generation !== loadGeneration)) return;
       console.error("[ECLIPSE] Primary hologram initialization failed", error);
-      setFallback(error.name === "AbortError" ? "MODEL LOAD TIMEOUT · FALLBACK ACTIVE" : "3D UNAVAILABLE · FALLBACK ACTIVE");
-      runtimeStatus.title = error?.message || "Unknown hologram initialization error";
+      const reason = shortError(error);
+      const stage = failureStage.toUpperCase();
+      setFallback(error.name === "AbortError" ? "MODEL LOAD TIMEOUT · FALLBACK ACTIVE" : "3D UNAVAILABLE · " + stage + " · FALLBACK ACTIVE", reason);
+      runtimeStatus.title = failureStage + ": " + (error?.message || "Unknown hologram initialization error");
       if (assistantFeedback && !assistantFeedback.textContent.trim()) {
         assistantFeedback.textContent = "Hologram fallback active; AI controls remain available.";
       }
